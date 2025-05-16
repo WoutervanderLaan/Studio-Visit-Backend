@@ -1,0 +1,9 @@
+fastapi[standard]
+uvicorn
+sqlmodel
+chromadb
+slowapi
+faster_whisper
+llama-cpp-python
+pyjwt
+passlib[bcrypt]
