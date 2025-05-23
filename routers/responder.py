@@ -41,13 +41,11 @@ async def studio_response(
     prompt = req.prompt
     model_type = req.model_type
 
-    print(model_type.value)
-
     try:
         response_text = model.get_response(prompt)
         logger.log_interaction(prompt, response_text)
 
-        return {"response": response_text}
+        return PromptReturn(response=response_text)
 
     except Exception as error:
         raise HTTPException(

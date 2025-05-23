@@ -46,7 +46,7 @@ async def get_history(
 @router.get("/db")
 async def get_history_db(
     session: SessionDep,
-    # token=Depends(oauth2_scheme),
+    token=Depends(oauth2_scheme),
 ):
     logs = session.exec(select(DBLog).offset(0).limit(100)).all()
     return logs

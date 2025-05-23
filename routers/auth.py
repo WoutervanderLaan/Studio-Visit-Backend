@@ -37,7 +37,7 @@ class TokenData(BaseModel):
 fake_user_db = {
     "test@admin.com": {
         "username": "test@admin.com",
-        "password": "$2b$12$0oDj/.Rcu.eP6KSn9CWh/u3tRqB0X18pfXzOcTT.yx1ag2HTgGtoC",  # Testtest1
+        "password": "$2b$12$0oDj/.Rcu.eP6KSn9CWh/u3tRqB0X18pfXzOcTT.yx1ag2HTgGtoC",
         "scopes": ["admin"],
     },
     "test@user.com": {
@@ -116,8 +116,11 @@ async def register_user(
 
     fake_user_db.update(
         {
-            username: {"username": username, "password": pwd_context.hash(password)},
-            "scopes": ["user"],
+            username: {
+                "username": username,
+                "password": pwd_context.hash(password),
+                "scopes": ["user"],
+            }
         }
     )
 
@@ -129,7 +132,7 @@ async def register_user(
 async def login_user(
     response: Response,
     form_data: security.OAuth2PasswordRequestForm = Depends(),
-) -> Token:
+) -> dict[str, str]:
     """
     Login user and return access and refresh tokens.
     """
@@ -187,10 +190,10 @@ async def refresh_token(request: Request):
             jwt=refresh_token, key=REFRESH_SECRET_KEY, algorithms=[ALGORITHM]
         )
 
-        username = payload.get("sub")
+        username: str = payload.get("sub", "")
         user_in_db = fake_user_db.get(username)
 
-        if username not in fake_user_db:
+        if username not in fake_user_db or not user_in_db:
             raise HTTPException(401, "Invalid user")
 
         new_access_token = jwt.encode(
@@ -204,7 +207,7 @@ async def refresh_token(request: Request):
             algorithm=ALGORITHM,
         )
 
-        return Token(new_access_token, "bearer")
+        return Token(access_token=new_access_token, token_type="bearer")
 
     except jwt.PyJWTError:
         raise HTTPException(401, "Invalid refresh token")

@@ -1,4 +1,4 @@
-from llama_cpp import Llama
+from llama_cpp import Llama, CreateCompletionStreamResponse
 import asyncio, os
 from .rag_db import RagDB
 
@@ -59,10 +59,12 @@ class StudioModel:
 
     def get_response(self, prompt: str):
         result = self._respond(prompt)
-        return result["choices"][0]["text"].strip()
+        return result["choices"][0]["text"].strip()  # type: ignore
 
     async def get_response_async(self, prompt: str):
         for chunk in self._respond(prompt, stream=True):
             await asyncio.sleep(0)
-            token = chunk["choices"][0]["text"]
-            yield token
+
+            if not isinstance(chunk, str):
+                token = chunk["choices"][0]["text"]
+                yield token
