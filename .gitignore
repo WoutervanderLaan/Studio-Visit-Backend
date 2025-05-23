@@ -178,3 +178,4 @@ models/*
 logs/*
 chroma_db/*
 database.db
+.DS_Store
