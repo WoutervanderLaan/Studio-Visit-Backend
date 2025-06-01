@@ -4,7 +4,7 @@ import json, os
 from pydantic import BaseModel
 from sqlmodel import select
 from .auth import oauth2_scheme
-from ..studio.sql_db import SessionDep, DBLog
+from studio.sql_db import SessionDep, DBLog
 
 router = APIRouter(
     prefix="/history", tags=["history"], responses={404: {"description": "Not found"}}

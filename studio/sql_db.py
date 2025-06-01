@@ -13,7 +13,6 @@ class DBLog(SQLModel, table=True):
 class SqlDB:
     def __init__(self, sqlite_file_name="database.db"):
         self._sqlite_url = f"sqlite:///{sqlite_file_name}"
-        # self._sqlite_url = "postgresql://user:password@localhost/dbname"
 
         connect_args = {"check_same_thread": False}
 

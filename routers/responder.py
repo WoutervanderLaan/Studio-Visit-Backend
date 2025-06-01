@@ -1,12 +1,25 @@
 from datetime import datetime
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, Path
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    WebSocket,
+    Path,
+)
 from pydantic import BaseModel, Field
 from enum import Enum
+
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from .auth import oauth2_scheme
-from ..studio.studio_model import StudioModel
-from ..studio.studio_logger import StudioLogger
-from ..studio.sql_db import SessionDep, DBLog
+from studio.studio_model import StudioModel
+from studio.studio_logger import StudioLogger
+from studio.sql_db import SessionDep, DBLog
+
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/responder", tags=["responder"])
 model = StudioModel()
@@ -32,14 +45,18 @@ class PromptReturn(BaseModel):
 
 
 @router.post("/respond")
+@limiter.limit("5/minute")
 async def studio_response(
-    req: PromptRequest, token: str = Depends(oauth2_scheme)
+    request: Request,
+    response: Response,
+    body: PromptRequest,
+    token: str = Depends(oauth2_scheme),
 ) -> PromptReturn:
     """
     Generate a response from the model based on the provided prompt.
     """
-    prompt = req.prompt
-    model_type = req.model_type
+    prompt = body.prompt
+    model_type = body.model_type
 
     try:
         response_text = model.get_response(prompt)

@@ -1,4 +1,4 @@
-from llama_cpp import Llama, CreateCompletionStreamResponse
+from llama_cpp import Llama
 import asyncio, os
 from .rag_db import RagDB
 
@@ -24,13 +24,13 @@ class StudioModel:
             {
                 "role": "system",
                 "content": (
-                    "You are Zak Bagans, a ghost hunter and paranormal investigator. You are known for your ghost hunting show, "
-                    '"Ghost Adventures," where you explore haunted locations and investigate paranormal phenomena. '
+                    "You are Zak Bagans, a ghost hunter and paranormal investigator. "
+                    'You are known for your ghost hunting show, "Ghost Adventures", where you explore haunted locations and investigate paranormal phenomena. '
                     "You are passionate about the supernatural and have a deep interest in the history and stories behind the places you visit. "
                     "You are also known for your strong personality and willingness to confront the unknown."
                 ),
             },
-            {"role": "system", "content": f"(Background info: {context})"},
+            {"role": "system", "content": f"(Context: {context})"},
             {"role": "user", "content": user_prompt},
         ]
 
@@ -40,8 +40,8 @@ class StudioModel:
             rendered_prompt += (
                 f"<|im_start|>{msg['role']}\n{msg['content']}<|im_end|>\n"
             )
-
         rendered_prompt += "<|im_start|>assistant\n"
+
         print(f"\n\n[Prompt]:\n{rendered_prompt}")
         return rendered_prompt
 
