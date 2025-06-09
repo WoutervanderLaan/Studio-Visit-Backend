@@ -7,7 +7,6 @@ from fastapi import (
     Request,
     Response,
     WebSocket,
-    Path,
 )
 from pydantic import BaseModel, Field
 from enum import Enum
@@ -17,7 +16,8 @@ from slowapi.util import get_remote_address
 from .auth import oauth2_scheme
 from studio.studio_model import StudioModel
 from studio.studio_logger import StudioLogger
-from studio.sql_db import SessionDep, DBLog
+from studio.database import SessionDep, Message, User
+from .auth import get_current_user
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -70,36 +70,68 @@ async def studio_response(
         )
 
 
-@router.websocket("/ws/respond/{model_type}")
+async def get_ws_user(websocket: WebSocket, session: SessionDep):
+    token = websocket.headers.get("sec-websocket-protocol")
+
+    if not token:
+        await websocket.accept()
+        await websocket.close(code=1008, reason="404: Missing token")
+        return
+
+    try:
+        return get_current_user(session, token)
+    except Exception as auth_err:
+        await websocket.accept(subprotocol=token)
+        await websocket.close(code=1008, reason=str(auth_err))
+        return
+
+
+@router.websocket("/ws/respond")
 async def handle_websocket(
-    websocket: WebSocket,
-    session: SessionDep,
-    model_type: Model = Path(description="Model selection", examples=["1", "2"]),
+    websocket: WebSocket, session: SessionDep, user: User = Depends(get_ws_user)
 ):
-    print("\n\n[WebSocket Connection Established]")
-    print("MODEL:", model_type)
-    await websocket.accept()
+    is_closed = False
 
-    prompt = await websocket.receive_text()
-    if not prompt:
-        await websocket.close(code=400, reason="No prompt provided.")
+    try:
+        token = websocket.headers.get("sec-websocket-protocol")
+        await websocket.accept(subprotocol=token)
 
-    full_response = ""
+        while True:
+            try:
+                prompt = await websocket.receive_text()
 
-    async for token in model.get_response_async(prompt):
-        await websocket.send_text(token)
-        full_response += token
+                full_response = ""
 
-    logger.log_interaction(prompt, full_response)
+                async for token_chunk in model.get_response_async(prompt):
+                    await websocket.send_text(token_chunk)
+                    full_response += token_chunk
 
-    log = DBLog(
-        id=str(uuid.uuid4()),
-        timestamp=datetime.now().isoformat(),
-        user_input=prompt,
-        model_input=full_response,
-    )
+                await websocket.send_text("[END]")
 
-    session.add(log)
-    session.commit()
-    session.refresh(log)
-    await websocket.close(code=1000, reason="Response complete.")
+                logger.log_interaction(prompt, full_response)
+
+                user_message = Message(
+                    user_id=user.id, content=prompt, role="user", user=user
+                )
+
+                assistant_message = Message(
+                    user_id=user.id, content=full_response, role="assistant", user=user
+                )
+
+                session.add_all([user_message, assistant_message])
+                session.commit()
+                session.refresh(user_message)
+                session.refresh(assistant_message)
+            except Exception as inner_e:
+                print("inner_e", inner_e)
+                if not is_closed:
+                    await websocket.close(code=1011, reason=f"Error: {inner_e}")
+                    is_closed = True
+                break
+    except Exception as outer_e:
+        print("outer_e", outer_e)
+        if not is_closed:
+            try:
+                await websocket.close(code=1011, reason=f"Fatal Error: {outer_e}")
+            except RuntimeError:
+                pass

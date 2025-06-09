@@ -4,7 +4,8 @@ from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 from routers import auth, transcribe, responder, history
-from studio.sql_db import db
+from studio.database import db
+
 
 app = FastAPI()
 
@@ -13,16 +14,12 @@ app.state.limiter = responder.limiter
 
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
 
-# app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(SlowAPIMiddleware)
 
 sql_db = db
 
 
-origins = [
-    "http://localhost",
-    "http://localhost:8080",
-    "http://localhost:3000",
-]
+origins = ["http://localhost:3000"]
 
 app.add_middleware(
     CORSMiddleware,

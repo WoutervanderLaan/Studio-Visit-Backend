@@ -2,8 +2,13 @@ from datetime import datetime
 from enum import Enum
 import os, json, uuid
 from pydantic import BaseModel
-from sqlmodel import Field, Session, SQLModel, create_engine, select
-from .sql_db import DBLog
+
+
+class DBLog(BaseModel):
+    id: str
+    timestamp: str
+    user_input: str
+    model_input: str
 
 
 class FileType(Enum):
