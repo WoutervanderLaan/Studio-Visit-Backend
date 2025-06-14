@@ -1,10 +1,6 @@
 fastapi[standard]
 uvicorn
 sqlmodel
-chromadb
-slowapi
-faster_whisper
-llama-cpp-python
-pyjwt
+pyjwt 
 passlib[bcrypt]
-slowapi
+openai-agents
