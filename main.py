@@ -7,7 +7,7 @@ app = FastAPI()
 
 sql_db = db
 
-origins = ["http://localhost:3000"]
+origins = ["http://localhost:3000", "https://www.woutervanderlaan.com"]
 
 app.add_middleware(
     CORSMiddleware,
