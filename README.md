@@ -1,6 +1,6 @@
-ZakBot FastApi Test
+# Studio Visit Backend
 
-A FastApi backend which hosts a small llm that identifies as Zak Bagans from Ghost Adventures. 
+A FastApi backend for the drawing app at https://woutervanderlaan.com/canvas
 
 ## Getting Started
 
@@ -25,11 +25,10 @@ pip install -r requirements.txt
 ## Running server
 
 ```bash
-uvicorn app:app --reload 
+uvicorn main:app --host localhost --port 8000 --reload
 ```
 
-Uvicorn running on http://127.0.0.1:8000 
-
+Uvicorn running on http://localhost:8000
 
 ## OpenAPI docs
 

@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routers import auth, chat, history
 from app.core.database import db
-from app.core.config import get_settings
 
 app = FastAPI()
 
