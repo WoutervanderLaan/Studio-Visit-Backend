@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Form, Response, Request, security, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from passlib.context import CryptContext
 from pydantic import EmailStr
 from datetime import datetime, timedelta, timezone
 import jwt
@@ -17,15 +16,7 @@ settings = get_settings()
 router = APIRouter(
     prefix="/auth",
     tags=["auth"],
-    responses={
-        401: {"description": "Unauthorized"},
-        400: {"description": "Bad Request"},
-        500: {"description": "Internal Server Error"},
-    },
 )
-
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 @router.post(
@@ -90,7 +81,7 @@ async def register_user(
 
     user = User(
         email=username.lower(),
-        hashed_password=pwd_context.hash(password),
+        hashed_password=settings.pwd_context.hash(password),
         role="user",
     )
 
@@ -136,7 +127,9 @@ async def login_user(
 
     user = session.exec(statement).first()
 
-    if not user or not pwd_context.verify(form_data.password, user.hashed_password):
+    if not user or not settings.pwd_context.verify(
+        form_data.password, user.hashed_password
+    ):
         raise HTTPException(401, "Invalid credentials")
 
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)

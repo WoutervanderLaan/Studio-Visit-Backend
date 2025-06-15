@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict, DotEnvSettingsSo
 from pydantic import Field, ValidationError
 from functools import lru_cache
 from pathlib import Path
+from passlib.context import CryptContext
 import os
 from dotenv import dotenv_values
 
@@ -16,6 +17,9 @@ class BaseConfig(BaseSettings):
 
     # constants
     uploads_dir: str = Field(default="uploads")
+    pwd_context: CryptContext = Field(
+        default=CryptContext(schemes=["bcrypt"], deprecated="auto")
+    )
     algorithm: str = Field(default="HS256")
     access_token_expire_minutes: int = Field(default=30)
     refresh_token_expire_days: int = Field(default=1)

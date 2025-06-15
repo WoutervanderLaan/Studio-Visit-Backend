@@ -6,8 +6,6 @@ from app.core.config import get_settings
 
 app = FastAPI()
 
-settings = get_settings()
-
 sql_db = db
 
 origins = ["http://localhost:3000"]

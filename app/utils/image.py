@@ -3,12 +3,15 @@ from PIL import Image
 from io import BytesIO
 import uuid
 import os
+from app.core.config import get_settings
+
+settings = get_settings()
 
 
 def convert_to_png_and_save(
     contents: bytes,
     user_id: str,
-    output_dir: str = "uploads",
+    output_dir: str = settings.uploads_dir,
 ) -> str:
     """
     Validates and converts an image to PNG format.
@@ -38,7 +41,7 @@ def convert_to_png_and_save(
 
     file_path = os.path.join(user_output_dir, hashed_filename)
 
-    counter = 1  # Ensure unique filename
+    counter = 1
 
     while os.path.exists(file_path):
         hashed_filename = f"{hash_object.hexdigest()}_{counter}.png"

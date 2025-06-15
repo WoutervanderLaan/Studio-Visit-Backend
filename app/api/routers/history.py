@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from sqlmodel import select, delete
+from sqlmodel import select
 from app.core.database import SessionDep
 from app.models.db import User, Message
 from typing import List
 from ..dependencies import get_current_user
 import os, shutil
+from app.core.config import get_settings
 
+settings = get_settings()
 
 router = APIRouter(
     prefix="/history",
@@ -59,7 +61,7 @@ async def get_uploaded_image(
     if "/" in filename or "\\" in filename or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
-    file_path = os.path.join("uploads", filename)
+    file_path = os.path.join(settings.uploads_dir, filename)
 
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Image not found")
@@ -87,7 +89,7 @@ async def reset_history(session: SessionDep, user: User = Depends(get_current_us
 
     Returns a success message if deletion is successful, or an error message if something goes wrong.
     """
-    uploads_dir = "uploads"
+    uploads_dir = settings.uploads_dir
     user_uploads_dir = f"{uploads_dir}/{user.id}"
 
     try:
@@ -99,7 +101,7 @@ async def reset_history(session: SessionDep, user: User = Depends(get_current_us
         ).all()
 
         for message in all_messages:
-            session.delete(message)
+            session.delete(message)  # workaround
 
         session.commit()
 
