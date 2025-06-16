@@ -42,7 +42,7 @@ async def get_chat_history(
 
 
 @router.get(
-    path="/image/{filename}",
+    path="/image/{filename:path}",
     summary="Fetch uploaded image by filename",
     response_class=FileResponse,
     response_description="Returns the requested image file if it exists.",
@@ -58,7 +58,7 @@ async def get_uploaded_image(
     Returns the image as a PNG file if it exists in the `uploads` directory.
     Raises a 404 error if the file is not found.
     """
-    if "/" in filename or "\\" in filename or ".." in filename:
+    if "\\" in filename or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
     file_path = os.path.join(settings.uploads_dir, filename)

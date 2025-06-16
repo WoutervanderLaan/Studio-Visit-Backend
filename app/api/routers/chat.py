@@ -1,25 +1,32 @@
+from agents import TResponseInputItem
 from fastapi import (
     APIRouter,
     Depends,
+    Form,
     HTTPException,
     WebSocket,
     UploadFile,
     File,
 )
+from sqlmodel import select, desc
 from app.core.database import SessionDep
 from app.models.db import User, Message
 from app.core.socket_manager import SocketManager
 from ..dependencies import get_current_user, get_ws_user
 from app.utils.image import convert_to_png_and_save
-from app.services.critic import main, chat
-from app.models.schemas import ImageReturn
+from app.services.critic import critique, chat, draw
+from app.models.schemas import DrawRequest, ImageReturn, Line
+from app.core.config import get_settings
+from typing import List
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
 socket_manager = SocketManager()
+settings = get_settings()
 
 
 @router.post(
-    "/image-critique",
+    path="/image-critique",
     response_model=ImageReturn,
     summary="Upload an image for critique",
     description="""
@@ -39,6 +46,7 @@ async def upload_png(
 ):
     """
     Accept a PNG file upload and store it on disk. Only image files are allowed.
+    Will be thoroughly critiqued by a not so easily impressed art critic.
 
     - **file**: PNG image file to upload.
     - Returns: filename, file size, and message id.
@@ -61,9 +69,11 @@ async def upload_png(
 
     full_critique = ""
 
-    async for chunk in main(f"uploads/{user.id}/{filename}"):
+    async for chunk in critique(f"{settings.uploads_dir}/{filename}"):
         await websocket.send_text(chunk)
         full_critique += chunk
+
+    await websocket.send_text("[END]")
 
     message = Message(
         user_id=user.id,
@@ -79,6 +89,18 @@ async def upload_png(
     return ImageReturn(
         filename=filename, size=len(contents), message_id=str(message.id)
     )
+
+
+@router.post(path="/draw", response_model=List[Line])
+async def continue_drawing(
+    req: DrawRequest,
+    session: SessionDep,
+    user: User = Depends(get_current_user),
+):
+
+    new_lines = await draw(lines=req.lines)
+
+    return new_lines
 
 
 @router.websocket(
@@ -108,9 +130,31 @@ async def handle_websocket(
             try:
                 prompt = await websocket.receive_text()
 
+                conversation_history = session.exec(
+                    select(Message)
+                    .where(Message.user_id == user.id)
+                    .order_by(desc(Message.timestamp))
+                ).fetchmany(5)
+
+                input_items: list[TResponseInputItem] = []
+
+                for message in conversation_history.__reversed__():
+                    if message.role == "user" or message.role == "assistant":
+                        input_items.append(
+                            {
+                                "role": message.role,
+                                "type": "message",
+                                "content": message.content,
+                            }
+                        )
+
+                input_items.append(
+                    {"role": "user", "type": "message", "content": prompt}
+                )
+
                 full_response = ""
 
-                async for chunk in chat(prompt):
+                async for chunk in chat(input_items):
                     await websocket.send_text(chunk)
                     full_response += chunk
 
