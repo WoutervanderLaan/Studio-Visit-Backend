@@ -1,8 +1,8 @@
+from uuid import UUID
 from agents import TResponseInputItem
 from fastapi import (
     APIRouter,
     Depends,
-    Form,
     HTTPException,
     WebSocket,
     UploadFile,
@@ -13,8 +13,8 @@ from app.core.database import SessionDep
 from app.models.db import User, Message
 from app.core.socket_manager import SocketManager
 from ..dependencies import get_current_user, get_ws_user
-from app.utils.image import convert_to_png_and_save
-from app.services.critic import critique, chat, draw
+from app.utils.image import convert_to_png_and_save, image_to_base64
+from app.services.critic import chat, draw
 from app.models.schemas import DrawRequest, ImageReturn, Line
 from app.core.config import get_settings
 from typing import List
@@ -23,6 +23,50 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 socket_manager = SocketManager()
 settings = get_settings()
+
+
+def generate_input_items(
+    session: SessionDep, user_id: UUID
+) -> list[TResponseInputItem]:
+    conversation_history = session.exec(
+        select(Message)
+        .where(Message.user_id == user_id)
+        .order_by(desc(Message.timestamp))
+    ).fetchmany(5)
+
+    # TODO: add RAG to find relevance
+    # TODO: add session management to understand when a drawing is new vs a continuation
+
+    input_items: list[TResponseInputItem] = []
+
+    for message in conversation_history.__reversed__():
+        if message.role == "user" or message.role == "assistant":
+            if message.image_filename != None:
+                file_path = f"{settings.uploads_dir}/{message.image_filename}"
+                b64_image = image_to_base64(file_path)
+
+                input_items.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_image",
+                                "detail": "auto",
+                                "image_url": f"data:image/jpeg;base64,{b64_image}",
+                            }
+                        ],
+                    }
+                )
+
+            input_items.append(
+                {
+                    "role": message.role,
+                    "type": "message",
+                    "content": message.content,
+                }
+            )
+
+    return input_items
 
 
 @router.post(
@@ -67,9 +111,26 @@ async def upload_png(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid image file.")
 
+    input_items = generate_input_items(session, user.id)
+
+    b64_image = image_to_base64(f"{settings.uploads_dir}/{filename}")
+
+    input_items.append(
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "input_image",
+                    "detail": "auto",
+                    "image_url": f"data:image/jpeg;base64,{b64_image}",
+                }
+            ],
+        },
+    )
+
     full_critique = ""
 
-    async for chunk in critique(f"{settings.uploads_dir}/{filename}"):
+    async for chunk in chat(input_items):
         await websocket.send_text(chunk)
         full_critique += chunk
 
@@ -130,23 +191,7 @@ async def handle_websocket(
             try:
                 prompt = await websocket.receive_text()
 
-                conversation_history = session.exec(
-                    select(Message)
-                    .where(Message.user_id == user.id)
-                    .order_by(desc(Message.timestamp))
-                ).fetchmany(5)
-
-                input_items: list[TResponseInputItem] = []
-
-                for message in conversation_history.__reversed__():
-                    if message.role == "user" or message.role == "assistant":
-                        input_items.append(
-                            {
-                                "role": message.role,
-                                "type": "message",
-                                "content": message.content,
-                            }
-                        )
+                input_items = generate_input_items(session, user.id)
 
                 input_items.append(
                     {"role": "user", "type": "message", "content": prompt}
