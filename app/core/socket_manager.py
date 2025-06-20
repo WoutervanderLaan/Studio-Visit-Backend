@@ -20,3 +20,6 @@ class SocketManager:
 
     def has(self, user_id: str) -> bool:
         return user_id in self._sockets
+
+
+socket_manager = SocketManager()

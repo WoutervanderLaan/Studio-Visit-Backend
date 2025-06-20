@@ -10,18 +10,20 @@ from fastapi import (
 )
 from sqlmodel import select, desc
 from app.core.database import SessionDep
+from app.core.session_manager import VisitDep, WSVisitDep
 from app.models.db import User, Message
-from app.core.socket_manager import SocketManager
-from ..dependencies import get_current_user, get_ws_user
+from app.core.socket_manager import socket_manager
+from ..dependencies import (
+    get_current_user,
+    get_ws_user,
+)
 from app.utils.image import convert_to_png_and_save, image_to_base64
-from app.services.critic import chat, draw
 from app.models.schemas import DrawRequest, ImageReturn, Line
 from app.core.config import get_settings
 from typing import List
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-socket_manager = SocketManager()
 settings = get_settings()
 
 
@@ -35,7 +37,6 @@ def generate_input_items(
     ).fetchmany(5)
 
     # TODO: add RAG to find relevance
-    # TODO: add session management to understand when a drawing is new vs a continuation
 
     input_items: list[TResponseInputItem] = []
 
@@ -83,10 +84,11 @@ def generate_input_items(
         401: {"description": "Unauthorized"},
     },
 )
-async def upload_png(
+async def critique_image(
     session: SessionDep,
-    user: User = Depends(get_current_user),
+    visit: VisitDep,
     file: UploadFile = File(..., description="PNG image file to upload"),
+    user: User = Depends(get_current_user),
 ):
     """
     Accept a PNG file upload and store it on disk. Only image files are allowed.
@@ -130,7 +132,7 @@ async def upload_png(
 
     full_critique = ""
 
-    async for chunk in chat(input_items):
+    async for chunk in visit.chat(input_items):
         await websocket.send_text(chunk)
         full_critique += chunk
 
@@ -152,24 +154,27 @@ async def upload_png(
     )
 
 
-@router.post(path="/draw", response_model=List[Line])
+@router.post(
+    path="/draw", response_model=List[Line], dependencies=[Depends(get_current_user)]
+)
 async def continue_drawing(
     req: DrawRequest,
-    session: SessionDep,
-    user: User = Depends(get_current_user),
+    visit: VisitDep,
 ):
-
-    new_lines = await draw(lines=req.lines)
+    new_lines = await visit.draw(lines=req.lines)
 
     return new_lines
 
 
 @router.websocket(
-    path="/",
+    path="/ws",
     name="Chat WebSocket",
 )
 async def handle_websocket(
-    websocket: WebSocket, session: SessionDep, user: User = Depends(get_ws_user)
+    websocket: WebSocket,
+    session: SessionDep,
+    visit: WSVisitDep,
+    user: User = Depends(get_ws_user),
 ):
     """
     WebSocket endpoint for real-time chat.
@@ -199,7 +204,7 @@ async def handle_websocket(
 
                 full_response = ""
 
-                async for chunk in chat(input_items):
+                async for chunk in visit.chat(input_items):
                     await websocket.send_text(chunk)
                     full_response += chunk
 

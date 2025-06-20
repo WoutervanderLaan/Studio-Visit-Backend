@@ -41,3 +41,7 @@ class Line(BaseModel):
 
 class DrawRequest(BaseModel):
     lines: List[Line] = Field(description="The drawing lines to continue on.")
+
+
+class SessionReturn(BaseModel):
+    visit_id: str

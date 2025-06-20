@@ -1,4 +1,4 @@
-from fastapi import WebSocket, security, Depends, HTTPException
+from fastapi import WebSocket, WebSocketException, security, Depends, HTTPException
 import jwt
 from sqlmodel import select
 from ..core.database import SessionDep
@@ -37,10 +37,10 @@ def get_current_user(
 
         return user
 
-    except jwt.PyJWTError:
+    except jwt.PyJWTError as e:
         raise HTTPException(
             status_code=401,
-            detail="Invalid token",
+            detail=e,
         )
 
 
@@ -48,7 +48,7 @@ def require_admin(user: User = Depends(get_current_user)) -> User | None:
     """
     Ensure the user has the 'admin' scope.
     """
-    if user.role != "admin":
+    if user and user.role != "admin":
         raise HTTPException(
             status_code=401,
             detail="Insufficient permissions",
@@ -56,16 +56,18 @@ def require_admin(user: User = Depends(get_current_user)) -> User | None:
     return user
 
 
-async def get_ws_user(websocket: WebSocket, session: SessionDep):
+async def get_ws_user(websocket: WebSocket, session: SessionDep) -> User | None:
     token = websocket.headers.get("sec-websocket-protocol")
+
     if not token:
-        await websocket.accept()
-        await websocket.close(code=1008, reason="404: Missing token")
-        return
+        raise WebSocketException(code=1008, reason="404: Missing token")
 
     try:
-        return get_current_user(session, token)
+        user = get_current_user(session, token)
+
+        if not user:
+            raise WebSocketException(code=1008, reason="404: No user found")
+
+        return user
     except Exception as auth_err:
-        await websocket.accept(subprotocol=token)
-        await websocket.close(code=1008, reason=str(auth_err))
-        return
+        raise WebSocketException(code=1008, reason=str(auth_err))
