@@ -1,9 +1,7 @@
-import asyncio
-import base64
-import json
-import os
+import asyncio, base64, json, os
 from uuid import UUID, uuid4
 from agents import Runner, TResponseInputItem
+from dotenv import load_dotenv
 from openai.types.responses import ResponseTextDeltaEvent
 from app.core.config import get_settings
 from app.models.db import User
@@ -13,8 +11,15 @@ from app.services.agents.art_critic_agent import art_critic_agent
 
 settings = get_settings()
 
-OPENAI_API_KEY = settings.openai_api_key
-OPENAI_ORG_ID = settings.openai_org_id
+load_dotenv(".env.development")
+
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+OPENAI_ORG_ID = os.environ.get("OPENAI_ORG_ID")
+
+if not OPENAI_API_KEY:
+    raise ValueError("OPENAI_API_KEY environment variable is required")
+if not OPENAI_ORG_ID:
+    raise ValueError("OPENAI_ORG_ID environment variable is required")
 
 
 class StudioVisit:

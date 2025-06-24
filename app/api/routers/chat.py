@@ -9,8 +9,9 @@ from fastapi import (
     File,
 )
 from sqlmodel import select, desc
+from app.core import visit_manager
 from app.core.database import SessionDep
-from app.core.session_manager import VisitDep, WSVisitDep
+from app.core.visit_manager import VisitDep
 from app.models.db import User, Message
 from app.core.socket_manager import socket_manager
 from ..dependencies import (
@@ -141,6 +142,7 @@ async def critique_image(
     message = Message(
         user_id=user.id,
         content=full_critique,
+        session_id=visit.session_id,
         role="assistant",
         image_filename=filename,
     )
@@ -173,7 +175,6 @@ async def continue_drawing(
 async def handle_websocket(
     websocket: WebSocket,
     session: SessionDep,
-    visit: WSVisitDep,
     user: User = Depends(get_ws_user),
 ):
     """
@@ -195,6 +196,7 @@ async def handle_websocket(
         while True:
             try:
                 prompt = await websocket.receive_text()
+                visit = await visit_manager.get_ws_visit(session, user)
 
                 input_items = generate_input_items(session, user.id)
 
@@ -211,11 +213,19 @@ async def handle_websocket(
                 await websocket.send_text("[END]")
 
                 user_message = Message(
-                    user_id=user.id, content=prompt, role="user", user=user
+                    user_id=user.id,
+                    content=prompt,
+                    role="user",
+                    user=user,
+                    session_id=visit.session_id,
                 )
 
                 assistant_message = Message(
-                    user_id=user.id, content=full_response, role="assistant", user=user
+                    user_id=user.id,
+                    content=full_response,
+                    role="assistant",
+                    user=user,
+                    session_id=visit.session_id,
                 )
 
                 session.add_all([user_message, assistant_message])
@@ -223,11 +233,14 @@ async def handle_websocket(
                 session.refresh(user_message)
                 session.refresh(assistant_message)
             except Exception as inner_e:
+                session.rollback()
                 if not is_closed:
                     await websocket.close(code=1011, reason=f"Error: {inner_e}")
                     is_closed = True
                 break
     except Exception as outer_e:
+        session.rollback()
+
         if not is_closed:
             try:
                 await websocket.close(code=1011, reason=f"Fatal Error: {outer_e}")

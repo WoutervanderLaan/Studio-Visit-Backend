@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routers import auth, chat, history, session
+from app.api.routers import auth, chat, history, visit
 from app.core.database import db
 
 app = FastAPI()
@@ -20,4 +20,4 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(history.router)
-app.include_router(session.router)
+app.include_router(visit.router)
